@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
 import { 
   Search, ChevronRight, Menu, LogOut, Settings, 
   BookOpen, BrainCircuit, HeartHandshake, Smile, Users,
@@ -11,194 +12,7 @@ import { collection, onSnapshot, doc, getDoc, setDoc, query, orderBy } from 'fir
 import { db, auth, loginWithGoogle, logout } from './firebase';
 import { handleFirestoreError, OperationType } from './lib/firestoreUtils';
 import { ErrorBoundary } from './components/ErrorBoundary';
-
-// --- DATA STRUCTURES (Used for Seeding) ---
-
-interface Step {
-  num: number;
-  title: string;
-  desc: string;
-}
-
-interface Article {
-  id: string;
-  title: string;
-  category: string;
-  metaInfo: string;
-  readTime: string;
-  excerpt: string;
-  bannerGradient: string;
-  content: {
-    intro: string;
-    steps: Step[];
-    conclusion: string;
-  };
-  authorId?: string;
-  createdAt?: string;
-}
-
-const MOCK_ARTICLES: Article[] = [
-  {
-    id: '0',
-    title: 'Khung Quản Trị Cảm Xúc Hệ Thống: Kết Hợp CBT & Kanban',
-    category: 'Khuyến Nghị Nổi Bật',
-    metaInfo: 'Hệ thống Quản trị • Nâng cao',
-    readTime: '20 Phút đọc',
-    excerpt: 'Hướng dẫn chi tiết phương pháp trực quan hóa luồng cảm xúc để quản trị năng lượng làm việc kết hợp liệu pháp nhận thức...',
-    bannerGradient: 'from-brand-blue to-[#116a82]',
-    content: {
-      intro: 'Sự kết hợp giữa Cognitive Behavioral Therapy (CBT - Liệu pháp nhận thức hành vi) và bảng Kanban trong quản lý dự án tạo ra một hệ thống theo dõi cảm xúc vô cùng sắc bén. Việc này giúp bạn không bị choáng ngợp bởi những suy nghĩ tiêu cực vô hình, mà biến chúng thành các "tác vụ/task" rõ ràng để giải quyết.',
-      steps: [
-        { num: 1, title: 'Nhận diện tín hiệu cơ thể', desc: 'Đưa trạng thái cảm xúc vào cột "To-Do". Nhận diện sự thay đổi sinh lý như nhịp tim nhanh, căng cơ.' },
-        { num: 2, title: 'Bắt mạch suy nghĩ tự động (CBT)', desc: 'Chuyển sang "In Progress". Viết ra suy nghĩ tiêu cực đầu tiên xuất hiện trong đầu mà không phán xét.' },
-        { num: 3, title: 'Tái cấu trúc nhận thức', desc: 'Sử dụng hệ thống phân tích logic để đánh giá tính chân thực của suy nghĩ. Tìm bằng chứng chống lại nó.' },
-        { num: 4, title: 'Phân loại theo Kanban Matrix', desc: 'Gắn nhãn cảm xúc theo Actionable (Xử lý được) hoặc Non-actionable (Cấp bách nhưng ngoài tầm kiểm soát).' },
-        { num: 5, title: 'Lưu trữ hệ thống', desc: 'Chuyển qua cột "Done". Đúc kết bài học vòng lặp cảm xúc vào Dashboard để máy học cá nhân hóa.' }
-      ],
-      conclusion: 'Khi thực hiện khung hệ thống này liên tục 21 ngày, não bộ của bạn sẽ tự động hóa quá trình phân tách cảm xúc, giảm thiểu hiệu ứng "Freeze" khi đối mặt với khủng hoảng.'
-    }
-  },
-  {
-    id: '1',
-    title: '[01] Framework 5 Bước Xử Lý Khủng Hoảng Tâm Lý',
-    category: 'Quản Trị Cảm Xúc',
-    metaInfo: 'Hệ thống Quản trị • Thực hành',
-    readTime: '12 Phút đọc',
-    excerpt: 'Làm thế nào để đưa bản thân về trạng thái cân bằng trong vòng 3 phút khi gặp cơn hoảng loạn (Panic Attack)...',
-    bannerGradient: 'from-brand-blue to-[#147a95]',
-    content: {
-      intro: 'Khi cơn hoảng loạn xảy ra, hạch hạnh nhân (Amygdala) trong não bị kích thích mạnh mẽ, tắt đi chức năng của vỏ não trước trán (trung tâm logic). Thay vì đè nén, hệ thống này giúp "mở khóa" dần lớp phòng thủ sinh học.',
-      steps: [
-        { num: 1, title: 'Grounding 5-4-3-2-1', desc: 'Kích hoạt lại 5 giác quan: 5 vật nhìn thấy, 4 thứ chạm được, 3 âm thanh, 2 mùi hương, 1 vị giác.' },
-        { num: 2, title: 'Box Breathing (Thở hộp)', desc: 'Hệ thống hô hấp điều hướng nhịp tim: Hít 4s, nín 4s, thở 4s, nín 4s. Lặp lại 4 vòng.' },
-        { num: 3, title: 'Rẽ nhánh suy nghĩ', desc: 'Đặt câu hỏi đóng (Yes/No) để ép vỏ não logic hoạt động trở lại. Ví dụ: "Bầu trời có màu xanh không?"' },
-        { num: 4, title: 'Quét cơ thể (Body Scan)', desc: 'Sử dụng cơ chế thả lỏng cơ bắp lũy tiến, bắt đầu từ ngón chân lên dỉnh đầu.' },
-        { num: 5, title: 'Tái hòa nhập trạng thái', desc: 'Dùng một "neo" cảm xúc tích cực (Anchor) để làm điểm tựa bước tiếp với hoạt động dang dở.' }
-      ],
-      conclusion: 'Mọi bước đều được đo lường thông qua việc tự chấm điểm theo thang SUD (Subjective Units of Distress) từ 0-10 trước và sau khi thực hành.'
-    }
-  },
-  {
-    id: '2',
-    title: '[02] Ứng Dụng Sơ Đồ Tư Duy Trong Tham Vấn Gia Đình',
-    category: 'Mối Quan Hệ & Kết Nối',
-    metaInfo: 'Mối quan hệ • Khoa học',
-    readTime: '15 Phút đọc',
-    excerpt: 'Biến câu chuyện rối rắm của gia đình thành cấu trúc (Genogram) để tìm ra nguồn gốc xung đột thế hệ...',
-    bannerGradient: 'from-brand-orange to-[#e68600]',
-    content: {
-      intro: 'Tham vấn gia đình thường rơi vào bế tắc do các thành viên liên tục đổ lỗi luẩn quẩn. Genogram (Cây phả hệ tâm lý) là một giải pháp hệ thống hóa các dạng thức (patterns) truyền từ thế hệ này sang thế hệ khác.',
-      steps: [
-        { num: 1, title: 'Vẽ cây phả hệ 3 đời', desc: 'Liệt kê các thành viên, tuổi tác, sự kiện lớn (ly hôn, mất mát, di cư) trong vòng 3 thế hệ.' },
-        { num: 2, title: 'Bản đồ hóa mối quan hệ', desc: 'Sử dụng các đường vẽ hệ thống: đường zíc zắc (xung đột), đường đứt nét (xa cách), đường kẻ ba (dính mắc).' },
-        { num: 3, title: 'Phát hiện vòng lặp di truyền', desc: 'Xác định các khuôn mẫu hành vi độc hại lặp lại (ví dụ: bạo lực lạnh, ái kỷ).' },
-        { num: 4, title: 'Phân tách trách nhiệm', desc: 'Sử dụng khung Boundaries để vạch rõ ranh giới cảm xúc của mỗi cá nhân trong hệ thống.' },
-        { num: 5, title: 'Thiết lập Dashboard giao tiếp', desc: 'Đề ra 3 nguyên tắc giao tiếp cốt lõi (ví dụ: dùng câu "Tôi cảm thấy...", không dùng từ "Luôn luôn").' }
-      ],
-      conclusion: 'Khi mỗi cá nhân nhìn thấy "hệ thống" gia đình trên mặt giấy, họ ngừng tấn công nhau và bắt đầu cùng nhau giải quyết vấn đề của hệ thống.'
-    }
-  },
-  {
-    id: '4',
-    title: '[04] Thiết Lập Hệ Thống Kỷ Luật Không Nước Mắt',
-    category: 'Tâm Lý Học Đường',
-    metaInfo: 'Học đường • Sơ đồ hóa',
-    readTime: '20 Phút đọc',
-    excerpt: 'Hệ thống hóa hành vi của con trẻ thành các nguyên tắc nhân quả thay vì trừng phạt và cảm xúc cá nhân...',
-    bannerGradient: 'from-brand-orange to-[#e68600]',
-    content: {
-      intro: 'Kỷ luật dựa trên cảm xúc của cha mẹ thường dẫn đến sự chống đối và tổn thương. Khung "Kỷ luật hệ thống" xây dựng trên cơ sở quy luật nhân quả hợp lý và sự đồng thuận.',
-      steps: [
-        { num: 1, title: 'Xây dựng bản hiến pháp', desc: 'Ngồi lại cùng con để soạn thảo các quy tắc bằng một sơ đồ hình cây sinh động.' },
-        { num: 2, title: 'Xác định hệ quả tự nhiên', desc: 'Nếu con không dọn đồ chơi, hệ quả là đồ chơi bị hỏng hoặc mất, cha mẹ không làm thay.' },
-        { num: 3, title: 'Hệ quả logic', desc: 'Nếu con chơi game quá giờ, hệ quả logic là ngày mai bị trừ đúng số thời gian vi phạm.' },
-        { num: 4, title: 'Sổ tay tracking hành vi', desc: 'Ghi nhận điểm tích cực qua hệ thống tích sao (Gamification) để kích thích Dopamine.' },
-        { num: 5, title: 'Giao tiếp thấu cảm', desc: 'Luôn bắt đầu bằng việc công nhận cảm xúc của trẻ trước khi áp dụng hệ quả của hệ thống.' }
-      ],
-      conclusion: 'Kỷ luật không phải là kiểm soát trẻ em, mà là hệ thống giúp trẻ tự kiểm soát và xây dựng thói quen tự lập dựa trên sự thấu hiểu.'
-    }
-  },
-  {
-    id: '5',
-    title: '[05] Debug Suy Nghĩ: Lập Trình Lại Điểm Mù Nhận Thức (Cognitive Biases)',
-    category: 'Hệ Thống Tư Duy',
-    metaInfo: 'Tư duy • Kỹ thuật sâu',
-    readTime: '18 Phút đọc',
-    excerpt: 'Coi não bộ như một phần mềm, bài viết hướng dẫn bạn cách "Debug" những tư duy sai lệch đang bào mòn năng lượng...',
-    bannerGradient: 'from-brand-blue to-[#0e4e60]',
-    content: {
-      intro: 'Con người xử lý khoảng 6,000 ý nghĩ mỗi ngày, trong đó có vô số "lỗi phần mềm" (Cognitive Distortions). Phương pháp "Mind Debugging" mượn tư duy lập trình để rà quét và fix lỗi các điểm mù này trước khi chúng tạo ra hành vi phá hoại.',
-      steps: [
-        { num: 1, title: 'Log Error (Ghi nhận lỗi)', desc: 'Khi cảm thấy tồi tệ, mở "Error Log" (Nhật ký). Ghi đúng sự kiện Input (Ai, lúc nào, cái gì) thuần túy không đánh giá.' },
-        { num: 2, title: 'Scan Middleware (Quét màng lọc)', desc: 'Tìm xem sự kiện đã đi qua màng lọc nhận thức nào (ví dụ: Đọc tâm trí người khác, Tư duy thảm họa hóa, Phân cực Trắng-Đen).' },
-        { num: 3, title: 'Isolate Function (Cô lập vấn đề)', desc: 'Tách biệt con người bạn khỏi ý nghĩ đó. "Tôi đang có một suy nghĩ rằng..." thay vì "Tôi tồi tệ vì..."' },
-        { num: 4, title: 'Write Clean Code (Cấu trúc lại)', desc: 'Viết ra một lời giải thích thay thế (Alternative Output) dựa trên dữ kiện thực tế 100% được kiểm chứng.' },
-        { num: 5, title: 'Unit Test (Chạy thử nghiệm)', desc: 'Mang suy nghĩ mới vào thử nghiệm trong một tình huống thực tế nhỏ và đánh giá cường độ cảm xúc (SUD).' }
-      ],
-      conclusion: 'Hệ thống tư duy của bạn cũng cần được cập nhật phần mềm liên tục. Bằng cách Debug mỗi ngày, "mạng nơ-ron" của bạn sẽ tự tối ưu hóa tốc độ xử lý trước các sự kiện tiêu cực.'
-    }
-  },
-  {
-    id: '6',
-    title: '[06] Ma Trận Năng Lượng (Energy Matrix) Dành Cho Quản Trị Nhân Sự',
-    category: 'Quản Trị Nhân Sự',
-    metaInfo: 'Quản trị • Dashboard',
-    readTime: '25 Phút đọc',
-    excerpt: 'Quản lý thời gian đã lỗi thời, thời đại mới cần hệ thống quản lý năng lượng để ngăn chặn Team Burnout triệt để...',
-    bannerGradient: 'from-brand-orange to-[#cc7700]',
-    content: {
-      intro: 'Nhiều nhân sự nghỉ việc ở đỉnh cao sự nghiệp không phải vì cạn kiệt thời gian, mà vì cạn kiệt dải năng lượng phục hồi. Khung "Energy Matrix" giúp HR phân bổ công việc dựa trên năng lực phục hồi sinh lý và tâm lý của từng cá nhân.',
-      steps: [
-        { num: 1, title: 'Check-in Năng Lượng', desc: 'Bắt đầu tuần mới bằng form Check-in: Phân loại nhân sự vào 4 vùng (Sinh tồn, Phục hồi, Hoạt động, Đỉnh cao).' },
-        { num: 2, title: 'Phân loại Task theo ROI Năng lượng', desc: 'Task không chỉ có tính cấp bách, mà phải có nhãn "Tiêu hao" hay "Tái tạo" năng lượng người làm.' },
-        { num: 3, title: 'Thiết kế Trạm sạc (Recovery Zones)', desc: 'Cài đặt các vi-tập (micro-breaks) 90/20. Làm việc sâu 90 phút, bắt buộc ngắt luồng 20 phút để não phục hồi.' },
-        { num: 4, title: 'Bản đồ Burnout (Heatmap)', desc: 'Trực quan hóa những điểm nghẽn (bottleneck) trong quy trình đang vắt kiệt cảm xúc của team.' },
-        { num: 5, title: 'Feedback Loop 360 độ', desc: 'Thẩm định lại mức độ hiệu quả của hệ thống thông qua các buổi 1-on-1 tập trung vào sức khỏe tâm thần.' }
-      ],
-      conclusion: 'Tối ưu hóa nguồn nhân lực không phải là vắt kiệt họ trong 8 tiếng, mà là xây dựng một hệ thống sinh thái giúp họ liên tục nạp xả nhịp nhàng mà không bị sập nguồn.'
-    }
-  },
-  {
-    id: '7',
-    title: '[07] Workflow Lắng Nghe Sâu (Deep Listening) Trong Xung Đột',
-    category: 'Mối Quan Hệ & Kết Nối',
-    metaInfo: 'Giao tiếp • Thực hành',
-    readTime: '18 Phút đọc',
-    excerpt: 'Biến kỹ năng lắng nghe trừu tượng thành một quy trình Workflow 4 trạm dễ dàng áp dụng ngay cả khi đang tức giận...',
-    bannerGradient: 'from-brand-blue to-[#116a82]',
-    content: {
-      intro: 'Khi xung đột xảy ra, con người có xu hướng "nghe để đáp trả" thay vì "nghe để thấu hiểu". Workflow lắng nghe sâu (dựa trên Nonviolent Communication) tạo ra một khoảng không gian trễ ảo, giúp bạn không bị điều khiển bởi bản năng tấn công.',
-      steps: [
-        { num: 1, title: 'Trạm 1: Pause & Ground', desc: 'Tự động kích hoạt cơ chế hâm nóng vùng não trước (Prefrontal Cortex) bằng 1 nhịp thở sâu 4 giây trước khi phản hồi.' },
-        { num: 2, title: 'Trạm 2: Tráng gương (Mirroring)', desc: 'Sử dụng hệ thống lặp lời: "Nếu tôi nghe không lầm, điều bạn đang trăn trở là [Lặp lại đúng từ khóa]... có phải không?"' },
-        { num: 3, title: 'Trạm 3: Dò tìm Nhu cầu ẩn', desc: 'Mọi lời phàn nàn sâu xa đều là biểu hiện của một nhu cầu chưa được đáp ứng. Hỏi: "Điều gì quan trọng với bạn trong chuyện này?"' },
-        { num: 4, title: 'Trạm 4: Validating (Công nhận)', desc: 'Xác nhận cảm xúc (không cần đồng ý hành vi): "Tôi hoàn toàn hiểu vì sao với tình huống đó, bạn lại cảm thấy tức giận/thất vọng."' },
-        { num: 5, title: 'Trạm 5: Cầu nối Giải pháp', desc: 'Chỉ chuyển sang bước tìm giải pháp khi và chỉ khi đối phương đã xác nhận tín hiệu "Tôi đã được hiểu".' }
-      ],
-      conclusion: 'Khi bạn đóng mô-đun "Bảo vệ cái tôi" và chạy mô-đun "Thấu cảm hệ thống", phần lớn các cuộc cãi vã biến thành những buổi gỡ rối mang tính xây dựng tuyệt đối.'
-    }
-  },
-  {
-    id: '8',
-    title: '[08] Cấu Trúc Hóa Nỗi Buồn: Liệu Pháp Chấp Nhận & Cam Kết (ACT)',
-    category: 'Quản Trị Cảm Xúc',
-    metaInfo: 'Hệ thống Quản trị • Sơ đồ',
-    readTime: '22 Phút đọc',
-    excerpt: 'Đừng cố xua đuổi nỗi đau. Hãy đặt nó vào một cấu trúc giá trị cốt lõi để tiếp tục hành động có ý nghĩa...',
-    bannerGradient: 'from-brand-orange to-[#d47400]',
-    content: {
-      intro: 'Liệu pháp ACT (Acceptance and Commitment Therapy) cho rằng đau khổ là một phần mặc định của "hệ điều hành" con người. Vấn đề không phải là xóa file "nỗi buồn.exe", mà là cách ta phân bổ dung lượng RAM để không bị crash toàn bộ hệ thống sống.',
-      steps: [
-        { num: 1, title: 'Defusion (Tách rời rốt ráo)', desc: 'Tách ý nghĩ ra khỏi thực tại. "Tôi TÀN TẠ" chuyển thành "Tôi ĐANG CÓ SUY NGHĨ RẰNG tôi tàn tạ."' },
-        { num: 2, title: 'Mở rộng không gian chứa (Expansion)', desc: 'Tưởng tượng nội tâm bạn là một căn phòng. Nỗi buồn là bộ sô-pha. Xây căn phòng rộng hơn thay vì vứt bỏ sô-pha đi.' },
-        { num: 3, title: 'Kết nối hiện tại (Contact with Present)', desc: 'Neo đậu tâm trí vào task vật lý đang thực hiện: Rửa bát cảm nhận làn nước, đi bộ cảm nhận gót chân tiếp đất.' },
-        { num: 4, title: 'Xác định Giá trị cốt lõi (Values)', desc: 'Vẽ la bàn giá trị: Trong công việc, tình yêu, sức khỏe, bản chất tận cùng bạn muốn trở thành người như thế nào?' },
-        { num: 5, title: 'Hành động cam kết (Committed Action)', desc: 'Thiết kế 1 hành động SIÊU NHỎ khớp với Giá trị ở bước 4, MẶC KỆ sự tồn tại của sô-pha (nỗi buồn) ở bước 2.' }
-      ],
-      conclusion: 'Khi hệ thống ACT được lắp đặt, bạn sở hữu khả năng "ôm trọn đau thương" trong một tay, trong khi tay kia vẫn tiếp tục xây dựng sự nghiệp và những kết nối ý nghĩa.'
-    }
-  }
-];
+import { type Article, type Step, MOCK_ARTICLES } from './data/mockArticles';
 
 // --- COMPONENTS ---
 
@@ -265,20 +79,24 @@ const ArticleContent = ({ article }: { article: Article }) => (
     <ExpandedBanner article={article} />
     
     <div className="max-w-4xl pb-4">
-      <p className="text-base md:text-lg text-slate-700 leading-relaxed font-medium mb-8">
-        {article.content.intro}
-      </p>
+      <div className="text-base md:text-lg text-slate-700 leading-relaxed font-medium mb-8 markdown-body">
+        <ReactMarkdown>{article.content.intro}</ReactMarkdown>
+      </div>
 
       {/* Sơ đồ hóa Framework */}
+      <h3 className="text-xl font-bold text-text-dark mt-10 mb-4 flex items-center gap-2">
+        <Activity size={24} className="text-[#1992b0]" />
+        Phần Thực Hành / Phương Pháp Trị Liệu
+      </h3>
       <ProcessFramework steps={article.content.steps || []} />
 
       <h3 className="text-xl font-bold text-text-dark mt-10 mb-4 flex items-center gap-2">
         <CheckCircle2 size={24} className="text-brand-orange" />
         Kết Luận & Đo Lường
       </h3>
-      <p className="text-base text-slate-600 leading-relaxed">
-        {article.content.conclusion}
-      </p>
+      <div className="text-base text-slate-600 leading-relaxed markdown-body">
+        <ReactMarkdown>{article.content.conclusion}</ReactMarkdown>
+      </div>
       
       <div className="mt-10 p-5 bg-brand-orange/10 border border-brand-orange/20 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
          <div className="font-medium text-brand-orange text-sm relative z-10 whitespace-pre-line text-center md:text-left">
