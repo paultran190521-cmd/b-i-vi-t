@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "A psychology and system management article",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "metaInfo": { "type": "string" },
+        "readTime": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "bannerGradient": { "type": "string" },
+        "contentIntro": { "type": "string" },
+        "contentSteps": { "type": "string", "description": "JSON stringified steps array due to complex nested structure" },
+        "contentConclusion": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["title", "category", "metaInfo", "readTime", "excerpt", "bannerGradient", "contentIntro", "contentSteps", "contentConclusion", "authorId"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "UserProfile" },
+      "description": "Store user profile and roles"
+    },
+    "articles/{articleId}": {
+      "schema": { "$ref": "Article" },
+      "description": "Store all articles in the system"
+    }
+  }
+}

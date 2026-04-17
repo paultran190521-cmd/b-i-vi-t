@@ -1,0 +1,125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - role: string (required, 'admin' or 'user')
+    //   - createdAt: timestamp (optional)
+    //
+    // Collection: articles
+    // Document ID: {articleId}
+    // Fields:
+    //   - title: string (required, max 200 chars)
+    //   - category: string (required, max 100 chars)
+    //   - metaInfo: string (required, max 200 chars)
+    //   - readTime: string (required, max 50 chars)
+    //   - excerpt: string (required, max 500 chars)
+    //   - bannerGradient: string (required, max 100 chars)
+    //   - contentIntro: string (required, max 5000 chars)
+    //   - contentSteps: string (required, JSON stringified, max 100000 chars)
+    //   - contentConclusion: string (required, max 5000 chars)
+    //   - authorId: string (required)
+    //   - createdAt: timestamp (optional)
+    //   - updatedAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "paultran190521@gmail.com" && request.auth.token.email_verified == true)
+        );
+    }
+    
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+    
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+    
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUser() {
+      let allowed = ['uid', 'email', 'role', 'createdAt'];
+      let required = ['uid', 'email', 'role'];
+      
+      return hasOnlyAllowedFields(allowed) &&
+             hasRequiredFields(required) &&
+             validStringLength('uid', 1, 100) &&
+             validStringLength('email', 3, 150) &&
+             (request.resource.data.role == 'user' || request.resource.data.role == 'admin');
+    }
+    
+    function isValidArticle() {
+      let allowed = ['title', 'category', 'metaInfo', 'readTime', 'excerpt', 'bannerGradient', 'contentIntro', 'contentSteps', 'contentConclusion', 'authorId', 'createdAt', 'updatedAt'];
+      let required = ['title', 'category', 'metaInfo', 'readTime', 'excerpt', 'bannerGradient', 'contentIntro', 'contentSteps', 'contentConclusion', 'authorId'];
+      
+      return hasOnlyAllowedFields(allowed) &&
+             hasRequiredFields(required) &&
+             validStringLength('title', 1, 200) &&
+             validStringLength('category', 1, 100) &&
+             validStringLength('metaInfo', 1, 200) &&
+             validStringLength('readTime', 1, 50) &&
+             validStringLength('excerpt', 1, 500) &&
+             validStringLength('bannerGradient', 1, 100) &&
+             validStringLength('contentIntro', 1, 5000) &&
+             validStringLength('contentSteps', 1, 100000) &&
+             validStringLength('contentConclusion', 1, 5000) &&
+             validStringLength('authorId', 1, 100);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      // A user can create their own document but only with role 'user'
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser() && 
+                    ((request.resource.data.role == 'user' && request.resource.data.uid == userId) || isAdmin());
+      // A user can update their profile but cannot change their role, or admin can update
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser() && 
+                    ((request.resource.data.role == resource.data.role && request.resource.data.uid == resource.data.uid) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /articles/{articleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidArticle() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAdmin() && isValidArticle() && request.resource.data.authorId == resource.data.authorId;
+      allow delete: if isAdmin();
+    }
+  }
+}
