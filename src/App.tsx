@@ -150,7 +150,6 @@ function AppContent() {
         }
       } else {
         setIsAdmin(false);
-        setArticles([]); // Clear articles on logout
       }
       setLoading(false);
     });
@@ -159,8 +158,6 @@ function AppContent() {
 
   // Fetch Articles
   useEffect(() => {
-    if (!user) return;
-    
     // Subscribe to articles collection
     const q = query(collection(db, 'articles'));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -231,27 +228,6 @@ function AppContent() {
     setExpandedId(prev => prev === id ? null : id);
   };
 
-  // Login Screen (If not authenticated)
-  if (!user && !loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-blue/5">
-         <div className="glass-panel p-10 rounded-3xl max-w-md w-full flex flex-col items-center shadow-xl text-center border-white/50">
-            <div className="font-extrabold text-3xl font-sans tracking-tight text-brand-blue border-l-4 border-brand-orange pl-4 mb-8 uppercase flex flex-col items-start">
-              <span>Mind Sync</span>
-              <span className="text-brand-orange -mt-1 text-left">Pro.</span>
-            </div>
-            <h2 className="text-lg font-semibold text-slate-700 mb-6">Đăng nhập để vào không gian làm việc</h2>
-            <button 
-              onClick={loginWithGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-white text-slate-800 font-semibold py-3 px-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
-            >
-              Cấp quyền đăng nhập (Google)
-            </button>
-         </div>
-      </div>
-    );
-  }
-
   // Preloader
   if (loading) {
     return <div className="h-screen w-full flex items-center justify-center"><Activity className="animate-spin text-brand-blue" /></div>;
@@ -312,9 +288,15 @@ function AppContent() {
                <Database size={16} /> Tải dữ liệu mẫu lên
              </div>
            )}
-           <div onClick={logout} className="cursor-pointer px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors">
-              <LogOut size={16} /> Đăng xuất
-           </div>
+           {user ? (
+             <div onClick={logout} className="cursor-pointer px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors">
+                <LogOut size={16} /> Đăng xuất
+             </div>
+           ) : (
+             <div onClick={loginWithGoogle} className="cursor-pointer px-4 py-2 text-brand-blue hover:bg-brand-blue/10 rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors">
+                <LogOut size={16} className="transform rotate-180" /> Đăng nhập Admin
+             </div>
+           )}
         </div>
       </div>
 
